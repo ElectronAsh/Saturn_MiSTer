@@ -8,7 +8,7 @@ module CART (
 	
 	input             CE_R,
 	input             CE_F,
-	input      [24:0] AA,
+	input      [25:0] AA,
 	input      [15:0] ADI,
 	output     [15:0] ADO,
 	input       [1:0] AFC,
