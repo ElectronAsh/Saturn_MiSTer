@@ -130,12 +130,17 @@ module stv_io (
 			   ADC_SEL <= 3'd0;
 	end
 	else begin
-		if (STV_IO_CS && !MSHBS_N && !MSHRD_WR_N) begin
-			if (PORTD_CS) PORT_D_REG <= MSHDO[7:0];
-			if (PORTG_CS) PORT_G_REG <= MSHDO[7:0];
-			if (DIR_CS)      DIR_REG <= MSHDO[7:0];
-			if (MODE_CS)    MODE_REG <= MSHDO[7:0];
-			if (ADC_CS)      ADC_SEL <= MSHDO[2:0];
+		if (STV_IO_CS && !MSHBS_N) begin
+			if (MSHRD_WR_N) begin	// READs.
+				if (ADC_CS) ADC_SEL <= ADC_SEL + 3'd1;
+			end
+			else begin					// WRITEs.
+				if (PORTD_CS) PORT_D_REG <= MSHDO[7:0];
+				if (PORTG_CS) PORT_G_REG <= MSHDO[7:0];
+				if (DIR_CS)      DIR_REG <= MSHDO[7:0];
+				if (MODE_CS)    MODE_REG <= MSHDO[7:0];
+				if (ADC_CS)      ADC_SEL <= MSHDO[2:0];
+			end
 		end
 		
 		 PORTG_CTR[0] <= PORTG_CTR[0]+16'd1;
@@ -160,10 +165,10 @@ module stv_io (
 							   PORTF_CS ? {4{P4_CONT}}		:	// 0x0b. P4 / Extra 6-button Layout.
 							   PORTG_CS ? {2{CTR_MUX}} 	:	// 0x0d. PORTG = Counters.
 							     DIR_CS ? {4{DIR_REG}}		:	// 0x11. IO Port DIRection reg.
-							    TXD1_CS ? {4{8'h00}}		:	// 0x13. 
-								 TXD2_CS ? {4{8'h00}}		:	// 0x15. 
-								 RXD1_CS ? {4{8'h00}}		:	// 0x17. 
-								 RXD2_CS ? {4{8'h00}}		:	// 0x19. 
+							    TXD1_CS ? {4{8'hff}}		:	// 0x13. 
+								 TXD2_CS ? {4{8'hff}}		:	// 0x15. 
+								 RXD1_CS ? {4{8'hff}}		:	// 0x17. 
+								 RXD2_CS ? {4{8'hff}}		:	// 0x19. 
 							    FLAG_CS ? {4{8'h00}}		:	// 0x1b. Serial COM READ status.
 								 MODE_CS ? {4{MODE_REG}}	:	// 0x1d.
 								  ADC_CS ? {4{ADC_MUX}}		:	// 0x1f. Read ADC channel(s).
