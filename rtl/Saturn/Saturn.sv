@@ -460,6 +460,9 @@ module Saturn
 (*keep*)wire STV_IO_CS = (MSHA[24:0]>=25'h400000 && MSHA[24:0]<=25'h40003f);
 
 wire [31:0] STV_IO_DOUT;
+wire [7:0] PORTD_OUT;
+wire [7:0] PORTF_OUT;
+wire [7:0] PORTG_OUT;
 
 stv_io  stv_io_inst (
 	.CLK( CLK ),					// input  CLK
@@ -472,19 +475,23 @@ stv_io  stv_io_inst (
 	.MSHBS_N( MSHBS_N ),			// input  MSHBS_N
 	.MSHRD_WR_N( MSHRD_WR_N ),	// input  MSHRD_WR_N
 	
-	.joy0( joy0 ),
-	.joy1( joy1 ),
-	.joy2( joy2 ),
-	.joy3( joy3 ),
+	.joy0( joy0 ),					// input [31:0]  joy0
+	.joy1( joy1 ),					// input [31:0]  joy1
+	.joy2( joy2 ),					// input [31:0]  joy2
+	.joy3( joy3 ),					// input [31:0]  joy3
 	
-	//.ADC_IN_0( ADC_IN_0 ),
-	//.ADC_IN_1( ADC_IN_1 ),
-	//.ADC_IN_2( ADC_IN_2 ),
-	//.ADC_IN_3( ADC_IN_3 ),
-	//.ADC_IN_4( ADC_IN_4 ),
-	//.ADC_IN_5( ADC_IN_5 ),
-	//.ADC_IN_6( ADC_IN_6 ),
-	//.ADC_IN_7( ADC_IN_7 ),
+	//.ADC_IN_0( ADC_IN_0 ),	// input [7:0]  ADC_IN_0
+	//.ADC_IN_1( ADC_IN_1 ),	// input [7:0]  ADC_IN_1
+	//.ADC_IN_2( ADC_IN_2 ),	// input [7:0]  ADC_IN_2
+	//.ADC_IN_3( ADC_IN_3 ),	// input [7:0]  ADC_IN_3
+	//.ADC_IN_4( ADC_IN_4 ),	// input [7:0]  ADC_IN_4
+	//.ADC_IN_5( ADC_IN_5 ),	// input [7:0]  ADC_IN_5
+	//.ADC_IN_6( ADC_IN_6 ),	// input [7:0]  ADC_IN_6
+	//.ADC_IN_7( ADC_IN_7 ),	// input [7:0]  ADC_IN_7
+	
+	.PORTD_OUT( PORTD_OUT ),	// output [7:0]  PORT_D_OUT. JAMMA (56P) + CN25 (JST NH 5P) RESERVED OUTPUT 4bit. (?)
+	.PORTF_OUT( PORTF_OUT ),	// output [7:0]  PORT_F_OUT. CN21 (JST NH 11P) EXTENSION I/O 8bit. Used for 7-Seg disp, on games like Critter Crusher.
+	.PORTG_OUT( PORTG_OUT ),	// output [7:0]  PORT_G_OUT. CN20 (JST HN 10P) EXTENSION INPUT 8bit. (?)
 	
 	.STV_IO_DOUT( STV_IO_DOUT )
 );
