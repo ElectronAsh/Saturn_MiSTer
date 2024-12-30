@@ -8,7 +8,7 @@ module SCU
 	
 	input             RES_N,
 	
-	input      [24:0] CA,
+	input      [25:0] CA,
 	input      [31:0] CDI,
 	output     [31:0] CDO,
 	input             CCS1_N,

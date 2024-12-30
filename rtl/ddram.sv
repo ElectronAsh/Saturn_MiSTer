@@ -77,7 +77,9 @@ module ddram
 	input          cdbuf_rd,
 	output         cdbuf_busy,
 
-	input  [21: 1] cart_addr,
+	input          ACS0_N,
+	
+	input  [24: 1] cart_addr,
 	output [15: 0] cart_dout,
 	input  [15: 0] cart_din,
 	input          cart_rd,
@@ -86,6 +88,7 @@ module ddram
 
 	input  [25: 1] bios_addr,
 	input  [15: 0] bios_din,
+	input          cart_download,
 	input  [ 1: 0] bios_wr,
 	output         bios_busy,
 
@@ -97,7 +100,7 @@ module ddram
 	output         bsram_busy
 );
 
-reg  [ 25:  1] ram_address;
+(*noprune*)reg  [ 27:  1] ram_address;
 reg  [ 63:  0] ram_din;
 reg  [  7:  0] ram_be;
 reg  [  7:  0] ram_burst;
@@ -134,7 +137,7 @@ reg            vdp1fb_read_busy;
 reg  [ 13:  1] cdbuf_rcache_addr;
 reg            cdbuf_read_busy;
 
-reg  [ 21:  1] cart_rcache_addr,cart_write_addr;
+reg  [ 25:  1] cart_rcache_addr,cart_write_addr;
 reg            cart_rcache_dirty;
 reg  [ 15:  0] cart_write_data;
 reg  [  1:  0] cart_be;
@@ -287,11 +290,11 @@ always @(posedge clk) begin
 			cdbuf_rcache_addr <= cdbuf_addr;
 		end
 		if (cart_rd && !cart_rd_old) begin
-			if (cart_addr[21:4] != cart_rcache_addr[21:4] || cart_rcache_dirty) begin
-				cart_read_busy <= 1;
+			if ({ACS0_N,cart_addr[24:4]} != cart_rcache_addr[25:4] || cart_rcache_dirty) begin	// Check if the READ addr has changed. Or if dirty, due to a previous WRITE.
+				cart_read_busy <= 1;																					// If so, trigger a cart READ from DDR3.
 			end
-			cart_rcache_addr <= cart_addr;
-			cart_rcache_dirty <= 0;
+			cart_rcache_addr <= {ACS0_N,cart_addr[24:1]};	// Store the new READ request address as the rcache addr.
+			cart_rcache_dirty <= 0;									// Clear the dirty bit, as we're about to read the new data from DDR3.
 		end
 		if (bsram_rd && !bsram_rd_old) begin
 			if (bsram_addr[20:4] != bsram_rcache_addr[20:4] || bsram_rcache_dirty) begin
@@ -349,10 +352,10 @@ always @(posedge clk) begin
 			end	
 		end
 		if (|cart_wr && !cart_wr_old) begin
-			if (cart_addr[21:4] == cart_rcache_addr[21:4]) begin
-				cart_rcache_dirty <= 1;
+			if ({ACS0_N,cart_addr[24:4]} == cart_rcache_addr[25:4]) begin	// Does the new WRITE request addr match the previous READ address?
+				cart_rcache_dirty <= 1;													// If so, mark the data as dirty, which will force a new DDR3 read on the next READ request!
 			end
-			cart_write_addr <= cart_addr;
+			cart_write_addr <= {ACS0_N,cart_addr[24:1]};	// TESTING !!
 			cart_write_data <= cart_din;
 			cart_be <= cart_wr;
 			cart_write_busy <= 1;	
@@ -517,7 +520,11 @@ always @(posedge clk) begin
 				end
 				else if (cart_write_busy) begin
 					cart_write_busy <= 0;
-					ram_address <= {4'b0011,cart_write_addr[21:3],2'b00};
+					//ram_address <= {4'b0011,cart_write_addr[21:3],2'b00};
+					// Set bit [26] when Writing to cart "DRAM", to write to offset 0x4000000 in DDR3.
+					// Bit [25] Low when ACS0_N is Low (lower 32MB). Set High When Writing to the upper 32MB.
+					//ram_address <= 28'h4000000+{ACS0_N,cart_write_addr[24:3],2'b00};
+					ram_address <= 28'h4000000+{cart_write_addr[25:3],2'b00};
 					ram_din		<= {4{cart_write_data}};
 					case (cart_write_addr[2:1])
 						2'b00: ram_be <= {cart_be,6'b000000};
@@ -531,7 +538,11 @@ always @(posedge clk) begin
 					state       <= 3'h1;
 				end
 				else if (cart_read_busy) begin
-					ram_address <= {4'b0011,cart_rcache_addr[21:4],3'b000};
+					//ram_address <= {4'b0011,cart_rcache_addr[21:4],3'b000};
+					// Set bit [26] when Reading cart ROM/"DRAM", to read from offset 0x4000000 in DDR3.
+					// Bit [25] Low when ACS0_N is Low (lower 32MB). Set High when Reading the upper 32MB.
+					//ram_address <= 28'h4000000+{ACS0_N,cart_rcache_addr[24:4],3'b000};
+					ram_address <= 28'h4000000+{cart_rcache_addr[25:4],3'b000};
 					ram_be      <= 8'hFF;
 					ram_read    <= 1;
 					ram_burst   <= 2;
@@ -542,7 +553,11 @@ always @(posedge clk) begin
 				end
 				else if (bios_write_busy) begin
 					bios_write_busy <= 0;
-					ram_address <= {bios_write_addr[25:3],2'b00};
+					// Set bit [26] when Loading cart, to write at offset 0x4000000 in DDR3.
+					// Bit [25] can be set in bios_write_addr, since it comes direct from ioctl_addr->IO_ADDR during Loading.
+					// This should allow for Loading of Cart ROM(s) up to 64MB.
+					// (BIOS Loading address is currently limited to 19-bits, for 512KB max BIOS size.)
+					ram_address <= (cart_download) ? (28'h4000000+{bios_write_addr[25:3],2'b00}) : {bios_write_addr[18:3],2'b00};
 					ram_din		<= {4{bios_write_data}};
 					case (bios_write_addr[2:1])
 						2'b00: ram_be <= {bios_be,6'b000000};
@@ -687,7 +702,9 @@ end
 assign DDRAM_CLK      = clk;
 assign DDRAM_BURSTCNT = ram_burst;
 assign DDRAM_BE       = ram_be;
-assign DDRAM_ADDR     = {6'b001100, ram_address[25:3]}; // RAM at 0x30000000
+//assign DDRAM_ADDR     = {6'b001100, ram_address[25:3]}; // RAM at 0x30000000
+//assign DDRAM_ADDR     = {5'b00110, ram_address[26:3]}; // RAM at 0x30000000
+assign DDRAM_ADDR     = {4'b0011, ram_address[27:3]}; // RAM at 0x30000000
 assign DDRAM_RD       = ram_read;
 assign DDRAM_DIN      = ram_din;
 assign DDRAM_WE       = ram_write;

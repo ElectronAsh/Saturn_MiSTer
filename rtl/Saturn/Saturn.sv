@@ -103,6 +103,8 @@ module Saturn
 	input      [15:0] CD_RAM_Q,
 	input             CD_RAM_RDY,
 	
+	output        bit ACS0_N,
+	
 	input       [2:0] CART_MODE,
 	output     [24:1] CART_MEM_A,
 	output     [15:0] CART_MEM_D,
@@ -138,7 +140,12 @@ module Saturn
 	input             DBG_PAUSE,
 	input             DBG_BREAK,
 	input             DBG_RUN,
-	input       [7:0] DBG_EXT
+	input       [7:0] DBG_EXT,
+	
+	input [31:0] joy0,
+	input [31:0] joy1,
+	input [31:0] joy2,
+	input [31:0] joy3
 );
 
 	bit BREAK;
@@ -209,7 +216,7 @@ module Saturn
 	bit         SSHBACK_N;
 	
 	//SCU
-	bit  [24:0] CA;
+	bit  [25:0] CA;
 	bit  [31:0] CDO;
 	bit  [31:0] CDI;
 	bit         CBS_N;
@@ -242,7 +249,7 @@ module Saturn
 	bit  [15:0] ADO;
 	bit   [1:0] AFC;
 	bit         AAS_N;
-	bit         ACS0_N;
+//	bit         ACS0_N;
 	bit         ACS1_N;
 	bit         ACS2_N;
 	bit         AWAIT_N;
@@ -448,17 +455,141 @@ module Saturn
 `endif
 	);
 	
+
+//
+// 0x0001 PORT-A (P1)      JAMMA (56P)
+// 0x0003 PORT-B (P2)      JAMMA (56P)
+// 0x0005 PORT-C (SYSTEM)  JAMMA (56P)
+// 0x0007 PORT-D (OUTPUT)  JAMMA (56P) + CN25 (JST NH 5P) RESERVED OUTPUT 4bit. (?)
+// 0x0009 PORT-E (P3)      CN32 (JST NH 9P) EXTENSION I/O 8bit.
+// 0x000b PORT-F (P4 / Extra 6B layout)    CN21 (JST NH 11P) EXTENSION I/O 8bit.
+// 0x000d PORT-G           CN20 (JST HN 10P) EXTENSION INPUT 8bit. (?)
+// 0x000f unused
+// 0x0011 PORT_DIRECTION (each bit configure above IO ports, 1 - input, 0 - output)
+//
+
+	(*keep*)wire STV_IO_CS = (MSHA[24:0]>=25'h400000 && MSHA[24:0]<=25'h40003f);
+
+	// Shifting the MSHA address constants below, to ditch the LSB bit.
+	//
+	// I think the regs might get mirrored on both Odd and Even addresses? ElectronAsh.
+	//
+	(*keep*)wire PORTA_CS  = (MSHA[4:1]==5'h01>>1);
+	(*keep*)wire PORTB_CS  = (MSHA[4:1]==5'h03>>1);
+	(*keep*)wire PORTC_CS  = (MSHA[4:1]==5'h05>>1);
+	(*keep*)wire PORTD_CS  = (MSHA[4:1]==5'h07>>1);
+	(*keep*)wire PORTE_CS  = (MSHA[4:1]==5'h09>>1);
+	(*keep*)wire PORTF_CS  = (MSHA[4:1]==5'h0b>>1);
+	(*keep*)wire PORTG_CS  = (MSHA[4:1]==5'h0d>>1);
+	(*keep*)wire UNUSED_CS = (MSHA[4:1]==5'h0f>>1);
+	(*keep*)wire   DIR_CS  = (MSHA[4:1]==5'h11>>1);
+	
+	(*keep*)wire   TXD1_CS = (MSHA[4:1]==5'h13>>1);	// ?? Debug ??
+	(*keep*)wire   TXD2_CS = (MSHA[4:1]==5'h15>>1);	// RS422 Serial COM Tx.
+	(*keep*)wire   RXD1_CS = (MSHA[4:1]==5'h17>>1);	// ?? Debug ??
+	(*keep*)wire   RXD2_CS = (MSHA[4:1]==5'h19>>1);	// RS422 Serial COM Rx.
+	(*keep*)wire   FLAG_CS = (MSHA[4:1]==5'h1b>>1);	// RS422 FLAG.
+	(*keep*)wire   MODE_CS = (MSHA[4:1]==5'h1d>>1);	// [7]=b1=Set PORTG Counter MODE. [5:0]=RS422 Satelite mode and node# (Technical Bowling).
+	(*keep*)wire    ADC_CS = (MSHA[4:1]==5'h1f>>1);	// 8ch. [2:0] Write=Select Chan. Read=Chan data with chan auto-inc.
+	
+	
+	reg [7:0] PORT_D_REG;
+	reg [7:0] PORT_G_REG;
+	reg [7:0] DIR_REG;
+	reg [7:0] MODE_REG;
+	reg [7:0] TXD1_REG;
+	reg [7:0] TXD2_REG;
+	reg [2:0] ADC_SEL;
+	reg [7:0] ADC_REGS [0:7];
+	always @(posedge CLK or negedge RST_N)
+	if (!RST_N) begin
+		 PORT_D_REG <= 8'h00;
+		 PORT_G_REG <= 8'h00;
+		 PORTG_CTR[0] <= 16'h0000;
+		 PORTG_CTR[1] <= 16'h0000;
+		 PORTG_CTR[2] <= 16'h0000;
+		 PORTG_CTR[3] <= 16'h0000;
+		    DIR_REG <= 8'h77;
+			MODE_REG <= 8'h00;
+			 ADC_SEL <= 3'd0;
+	end
+	else begin
+		if (STV_IO_CS && !MSHBS_N && !MSHRD_WR_N) begin
+			if (PORTD_CS) PORT_D_REG <= MSHDO[7:0];
+			if (PORTG_CS) PORT_G_REG <= MSHDO[7:0];
+			if (DIR_CS)      DIR_REG <= MSHDO[7:0];
+			if (MODE_CS)    MODE_REG <= MSHDO[7:0];
+			if (ADC_CS)      ADC_SEL <= MSHDO[2:0];
+		end
+		
+		 PORTG_CTR[0] <= PORTG_CTR[0]+16'd1;
+		 PORTG_CTR[1] <= PORTG_CTR[1]+16'd2;
+		 PORTG_CTR[2] <= PORTG_CTR[2]+16'd3;
+		 PORTG_CTR[3] <= PORTG_CTR[3]+16'd4;
+	end
+	
+	wire [1:0] CTR_SEL  = PORT_G_REG[2:1];
+	wire PORTG_MODE     = MODE_REG[7];
+	wire [5:0] SAT_MODE = MODE_REG[5:0];
+	
+	reg [15:0] PORTG_CTR [0:3];
+	
+	
+	// PORTs A, B, E, F. (Player 1, 2, 3, 4)...
+	// 
+	// b7 = Left
+	// b6 = Right
+	// b5 = Up
+	// b4 = Down
+	// b3 = Button 4 (P3/P4 use this for Start)
+	// b2 = Button 3
+	// b1 = Button 2
+	// b0 = Button 1
+	wire [7:0] P1_CONT = {joy0[1],joy0[0],joy0[3],joy0[2], joy0[7:4]};
+	wire [7:0] P2_CONT = {joy1[1],joy1[0],joy1[3],joy1[2], joy1[7:4]};
+	wire [7:0] P3_CONT = {joy2[1],joy2[0],joy2[3],joy2[2], joy2[7:4]};
+	wire [7:0] P4_CONT = {joy3[1],joy3[0],joy3[3],joy3[2], joy3[7:4]};
+	
+	// PORTC (System) inputs...
+	// 
+	// b7 = Pause (if the game supports it)
+	// b6 = Multi-Cart Select.
+	// b5 = Start 2 ?
+	// b4 = Start 1 ?
+	// b3 = Service 1.
+	// b2 = Service - No toggle??
+	// b1 = Coin 2
+	// b0 = Coin 1
+	wire [7:0] SYS_CONT = joy0[15:8];
+	
+	wire [31:0] STV_IO_DOUT = PORTA_CS ? {4{~P1_CONT}}     :			// 0x01. P1.
+									  PORTB_CS ? {4{~P2_CONT}}     :			// 0x03. P2.
+									  PORTC_CS ? {4{~SYS_CONT}}    :			// 0x05. PORTC = SYSTEM (input).
+									  PORTD_CS ? {4{PORT_D_REG}}   :			// 0x07. PORTD = (output / readback).
+									  PORTE_CS ? {4{~P3_CONT}}     :			// 0x09. P3.
+									  PORTF_CS ? {4{~P4_CONT}}     :			// 0x0b. P4 / Extra 6-button Layout.
+									  PORTG_CS ? {2{PORTG_CTR[CTR_SEL]}} :	// 0x0d. PORTG = Counters.
+									    DIR_CS ? {4{DIR_REG}}      :			// 0x11. IO Port DIRection reg.
+									   TXD1_CS ? {4{8'h00}}			 :			// 0x13. 
+										TXD2_CS ? {4{8'h00}}			 :			// 0x15. 
+										RXD1_CS ? {4{8'h00}}			 :			// 0x17. 
+										RXD2_CS ? {4{8'h00}}			 :			// 0x19. 
+									   FLAG_CS ? {4{8'h00}}        :			// 0x1b. Serial COM READ status.
+										MODE_CS ? {4{MODE_REG}}		 :			// 0x1d.
+										 ADC_CS ? {4{ADC_REGS[ADC_SEL]}}			 :			// 0x1f. Read ADC(s).
+													 32'hffffffff;					// Default / Open bus.
+	
 	assign MSHIRL_N  = CIRL_N;
 	assign SSHIRL_N  = {1'b1,BIRL,1'b1};
 
-	assign MSHDI     = CDO;
+	assign MSHDI     = STV_IO_CS ? STV_IO_DOUT : CDO;
 	assign MSHWAIT_N = CWAIT_N & (MEM_WAIT_N | (MSHCS3_N & DRAMCE_N & ROMCE_N & SRAMCE_N));
 	assign SSHWAIT_N = CWAIT_N & (MEM_WAIT_N | (MSHCS3_N & DRAMCE_N & ROMCE_N & SRAMCE_N));
 	
 	assign CA       = MSHA[24:0];
 	assign CDO      = !MSHCS3_N || !DRAMCE_N || !ROMCE_N || !SRAMCE_N ? MEM_DI :
                      !SMPCCE_N                                       ? {4{SMPC_DO}} :
-							SCU_DO;
+																							  SCU_DO;
 	assign CDI      = MSHDO;
 	assign CBS_N    = MSHBS_N;
 	assign CCS0_N   = MSHCS0_N;
@@ -470,7 +601,6 @@ module Saturn
 	assign CRD_N    = MSHRD_N;
 	assign CIVECF_N = MSHIVECF_N;
 	assign ECWAIT_N = MEM_WAIT_N;
-	
 	
 	
 	assign ADI      = !ACS0_N || !ACS1_N ? CART_DO  : 
@@ -660,10 +790,66 @@ module Saturn
 		.PDR1I(SMPC_PDR1I),
 		.PDR1O(SMPC_PDR1O),
 		.DDR1(SMPC_DDR1),
-		.PDR2I(SMPC_PDR2I),
+		
+		//.PDR2I(SMPC_PDR2I),
+		.PDR2I(PDR2I),
+		
 		.PDR2O(SMPC_PDR2O),
 		.DDR2(SMPC_DDR2)
 	);
+	
+
+//	 
+// PDR1 output bits (SMPC reg at 0x100075).
+//
+// b4 -> Data to EEPROM.
+// b3 -> CLK  to EEPROM.
+// b2 -> CS   to EEPROM. (Active-HIGH??)
+//
+wire EEP_SDI = SMPC_PDR1O[4];
+wire EEP_CLK = SMPC_PDR1O[3];
+wire EEP_CS  = SMPC_PDR1O[2];	// Assuming Active-High from the core for now. Might be wrong? ElectronAsh.
+
+
+// PDR2 input (SMPC reg at 0x100077).
+// 
+// uint8_t stv_state::pdr2_input_r()
+// {
+//     return (m_pdr[1]->read() & ~0x19) | 0x18 | (m_eeprom->do_read() << 0);
+// }
+// 
+// b0 <- Data from EEPROM.
+
+// EEPROM only hooked up to PDR2I when CART_MODE (cart_type)==5, which is ST-V Cart mode in the MiSTer menu.
+// Else, it assigns the original SMPC_PDR2I from HPS2PAD, for Saturn mode.
+//
+// See here, for why SMPC_PDR2I gets masked with 0x66 (bits 6,5,2,1), and then OR'd with 0x18, to force bits 4+3 High...
+//
+// https://github.com/mamedev/mame/blob/master/src/mame/sega/stv.cpp#L1090
+//
+wire [6:0] PDR2I = (CART_MODE==3'd5) ? ((SMPC_PDR2I&7'h66)|7'h18)|EEP_SDO : SMPC_PDR2I;
+
+
+jt9346  jt9346_inst (
+	.rst( !RST_N ),		// system reset (active-HIGH!)
+	.clk( CLK ),			// system clock
+	
+	.sclk( EEP_CLK ),		// serial clock
+	.sdi(  EEP_SDI ),		// serial data in
+	.sdo(  EEP_SDO ),		// serial data out and ready/not busy signal
+	.scs(  EEP_CS )//,	// chip select, active high. Goes low in between instructions
+	
+	//.dump_clk( dump_clk ),
+	//.dump_addr( dump_addr ),
+	//.dump_we( 1'b0 ),
+	//.dump_din( 6'd0 ),
+	//.dump_dout( dump_dout ),
+	
+	//.dump_clr( 1'b0 ),
+	//.dump_flag( dump_flag )	
+);
+	
+	
 	
 	VDP1 VDP1
 	(
@@ -855,11 +1041,21 @@ module Saturn
 		.SLOT_EN(SLOT_EN)
 	);
 	
+
+	// ST-V seems to use PDR2O[4] to Reset the 68K?
+	//
+	// On Saturn, the SMPC has a specific Command and output pin for 68K Reset. ElectronAsh.
+	//
+	wire fx68k_extReset = (CART_MODE==3'd5) ? SMPC_PDR2O[4] : ~SNDRES_N;
+	
 	bit M68K_RESETOn;
 	fx68k M68K
 	(
 		.clk(CLK),
-		.extReset(~SNDRES_N | ~M68K_RESETOn),
+		
+		//.extReset(~SNDRES_N | ~M68K_RESETOn),
+		.extReset(fx68k_extReset | ~M68K_RESETOn),		// ST-V tweak. TESTING !!
+		
 		.pwrUp(~RST_N),
 		.enPhi1(SCCE_R),
 		.enPhi2(SCCE_F),
@@ -926,12 +1122,16 @@ module Saturn
 	SH1 #("rtl/cdb105m.mif") sh1
 	(
 		.CLK(CLK),
-		.RST_N(RST_N),
+		
+		//.RST_N(RST_N),
+		.RST_N(1'b0),
+		
 		.CE_R(SHCE_R),
 		.CE_F(SHCE_F),
 		.EN(EN),
 		
-		.RES_N(CDRES_N),
+		//.RES_N(CDRES_N),
+		.RES_N(1'b0),
 		
 		.A(SA),
 		.DI(SDI),
@@ -974,9 +1174,12 @@ module Saturn
 	YGR019 ygr 
 	(
 		.CLK(CLK),
-		.RST_N(RST_N),
 		
-		.RES_N(CDRES_N),
+		//.RST_N(RST_N),
+		.RST_N(1'b0),
+		
+		//.RES_N(CDRES_N),
+		.RES_N(1'b0),
 		
 		.CE_R(SYS_CE_R),
 		.CE_F(SYS_CE_F),

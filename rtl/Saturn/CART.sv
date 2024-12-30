@@ -8,7 +8,7 @@ module CART (
 	
 	input             CE_R,
 	input             CE_F,
-	input      [25:0] AA,
+	input      [24:0] AA,
 	input      [15:0] ADI,
 	output     [15:0] ADO,
 	input       [1:0] AFC,
@@ -33,8 +33,8 @@ module CART (
 
 	wire [24:1] DRAM1M_ADDR = {5'b00000,AA[21],AA[18:1]};
 	wire [24:1] DRAM4M_ADDR = {3'b000,AA[21:1]};
-	wire [24:1] ROM2M_ADDR = {4'b0000,AA[20:1]};
-	wire [24:1] STV_ADDR = AA[24:1];
+	wire [24:1] ROM2M_ADDR  = {4'b0000,AA[20:1]};
+	wire [24:1] STV_ADDR    = AA[24:1];
 	wire [24:1] BACKUP_ADDR = {5'b00000,AA[19:1]};
 	
 	wire CART_ID_SEL = (AA[23:1] == 24'hFFFFFF>>1) && ~ACS1_N;
@@ -78,24 +78,24 @@ module CART (
 				end else if (!ARD_N && ARD_N_OLD) begin
 					if (CART_ID_SEL) begin
 						case (MODE)
-							3'h1: ABUS_DO <= 16'hFFFF;
-							3'h2: ABUS_DO <= 16'hFF5A;
-							3'h3: ABUS_DO <= 16'hFF5C;
-							3'h4: ABUS_DO <= 16'hFF21;
-							3'h5: ABUS_DO <= 16'hFFFF;//TODO
+							3'h1: ABUS_DO <= 16'hFFFF;			// ROM 2M.
+							3'h2: ABUS_DO <= 16'hFF5A;			// DRAM 1M.
+							3'h3: ABUS_DO <= 16'hFF5C;			// DRAM 4M.
+							3'h4: ABUS_DO <= 16'hFF21;			// BACKUP Mem.
+							3'h5: ABUS_DO <= 16'hFFFF;			// ST-V. TODO!
 							default: ABUS_DO <= 16'hFFFF;
 						endcase
 					end
 					else if (CART_MEM_SEL || BACKUP_MEM_SEL) begin
 						case (MODE)
-							3'h1: MEM_A <= ROM2M_ADDR;
-							3'h2: MEM_A <= DRAM1M_ADDR;
-							3'h3: MEM_A <= DRAM4M_ADDR;
-							3'h4: MEM_A <= BACKUP_ADDR;
-							3'h5: MEM_A <= STV_ADDR;
+							3'h1: MEM_A <= ROM2M_ADDR;			// ROM 2M.
+							3'h2: MEM_A <= DRAM1M_ADDR;		// DRAM 1M.
+							3'h3: MEM_A <= DRAM4M_ADDR;		// DRAM 4M.
+							3'h4: MEM_A <= BACKUP_ADDR;		// BACKUP Mem.
+							3'h5: MEM_A <= STV_ADDR;			// ST-V. TODO!
 							default: MEM_A <= '1;
 						endcase
-						MEM_RD <= 1;
+						MEM_RD <= 1;		// Do the Mem (or Cart ROM) read request.
 						ABUS_WAIT <= 1;
 					end
 				end

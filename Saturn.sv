@@ -246,7 +246,7 @@ module emu
 		"FS2,BIN,Load bios;",
 		"FS3,BIN,Load cartridge;",
 		"-;",
-		"OLN,Cartridge,None,ROM 2M,DRAM 1M,DRAM 4M,BACKUP;",
+		"OLN,Cartridge,None,ROM 2M,DRAM 1M,DRAM 4M,BACKUP,ST-V;",
 		"o13,Region,Japan,Taiwan,USA,Brazil,Korea,Asia,Europe,Auto;",
 		"-;",
 		"D0RO,Load Backup RAM;",
@@ -330,7 +330,7 @@ module emu
 
 		"-;",
 		"R0,Reset;",
-		"J1,A,B,C,Start,R,X,Y,Z,L;",
+		"J1,A,B,C,Start,R,X,Y,Z,L,STV-S2,STV-Mcart,STV-Pause;",
 		"jn,A,B,R,Start,Select,X,Y,L;", 
 		"jp,Y,B,A,Start,Select,L,X,R;",
 		"V,v",`BUILD_DATE
@@ -338,11 +338,11 @@ module emu
 
 	wire [63:0] status;
 	wire  [1:0] buttons;
-	wire [12:0] joystick_0,joystick_1,joystick_2,joystick_3,joystick_4;
+	wire [31:0] joystick_0,joystick_1,joystick_2,joystick_3,joystick_4;
 	wire  [7:0] joy0_x0,joy0_y0,joy0_x1,joy0_y1,joy1_x0,joy1_y0,joy1_x1,joy1_y1;
 	wire        ioctl_download;
 	wire        ioctl_wr;
-	wire [24:0] ioctl_addr;
+	wire [26:0] ioctl_addr;
 	wire [15:0] ioctl_data;
 	wire  [7:0] ioctl_index;
 	reg         ioctl_wait = 0;
@@ -861,6 +861,8 @@ module emu
 		.CD_RAM_Q(CD_RAM_Q),
 		.CD_RAM_RDY(CD_RAM_RDY),
 		
+		.ACS0_N(ACS0_N),
+		
 		.CART_MODE(cart_type),
 		.CART_MEM_A(CART_MEM_A),
 		.CART_MEM_D(CART_MEM_D),
@@ -895,7 +897,12 @@ module emu
 		.DBG_PAUSE(DBG_PAUSE),
 		.DBG_BREAK(DBG_BREAK),
 		.DBG_RUN(DBG_RUN),
-		.DBG_EXT(DBG_EXT)
+		.DBG_EXT(DBG_EXT),
+		
+		.joy0(joystick_0),
+		.joy1(joystick_1),
+		.joy2(joystick_2),
+		.joy3(joystick_3)
 	);
 	
 	assign USERJOYSTICKOUT = SMPC_PDR1O;
@@ -1015,7 +1022,8 @@ module emu
 //		if (~ddr_busy[7] && old_busy) ioctl_wait <= 0;
 		ioctl_wait <= bios_busy;
 	end
-	wire [25:1] IO_ADDR = cart_download ? {4'b0011,ioctl_addr[21:1]} : {7'b0000000,ioctl_addr[18:1]};
+	//wire [25:1] IO_ADDR = cart_download ? {4'b0011,ioctl_addr[21:1]} : {7'b0000000,ioctl_addr[18:1]};
+	wire [25:1] IO_ADDR = cart_download ? ioctl_addr[25:1] : {7'b0000000,ioctl_addr[18:1]};
 	wire [15:0] IO_DATA = {ioctl_data[7:0],ioctl_data[15:8]};
 	wire        IO_WR = (bios_download | cart_download) & ioctl_wr;
 	
@@ -1084,6 +1092,8 @@ module emu
 		.cdbuf_dout(cdbuf_do),
 		.cdbuf_busy(cdbuf_busy),
 		
+		.ACS0_N(ACS0_N),
+		
 		//CART MEM
 `ifdef DEBUG
 		.cart_addr('0),
@@ -1091,7 +1101,7 @@ module emu
 		.cart_wr  ('0),
 		.cart_rd  (0),
 `else
-		.cart_addr(CART_MEM_A[21:1]),
+		.cart_addr(CART_MEM_A[24:1]),
 		.cart_din (CART_MEM_D),
 		.cart_wr  (CART_MEM_WE),
 		.cart_rd  (CART_MEM_RD),
@@ -1102,6 +1112,7 @@ module emu
 		//BIOS/CART load
 		.bios_addr(IO_ADDR),
 		.bios_din (IO_DATA),
+		.cart_download(cart_download),
 		.bios_wr  ({2{IO_WR}}),
 		.bios_busy(bios_busy),
 		
