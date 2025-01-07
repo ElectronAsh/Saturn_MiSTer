@@ -75,7 +75,12 @@ module stv_io (
 wire [7:0] P1_CONT = ~{joy0[1],joy0[0],joy0[3],joy0[2], joy0[7:4]};
 wire [7:0] P2_CONT = ~{joy1[1],joy1[0],joy1[3],joy1[2], joy1[7:4]};
 wire [7:0] P3_CONT = ~{joy2[1],joy2[0],joy2[3],joy2[2], joy2[7:4]};
-wire [7:0] P4_CONT = ~{joy3[1],joy3[0],joy3[3],joy3[2], joy3[7:4]};
+
+//wire [7:0] P4_CONT = ~{joy3[1],joy3[0],joy3[3],joy3[2], joy3[7:4]};
+
+// Added some extra buttons to CONF_STR, so they can be mapped to P4.
+// Also mapping the directions (U,D,L,R) from P1 to P4, which is probably not a good idea, but TESTING. ElectronAsh.
+wire [7:0] P4_CONT = ~{joy0[1],joy0[0],joy0[3],joy0[2], joy0[19:16]};
 
 
 // PORTC (System) inputs...
@@ -162,8 +167,8 @@ wire [4:0] RS422_NODE = MODE_REG[3:0];
 
 
 // PORTG Counters, and Read mux.
-reg  [15:0] PORTG_CTR [0:3];
-wire [15:0] CTR_MUX = PORTG_CTR[ PORTG_OUT[2:1] ];
+reg  [7:0] PORTG_CTR [0:3];
+wire [7:0] CTR_MUX = (PORTG_MODE) ? PORTG_CTR[PORTG_OUT[2:1]] : 8'hff;
 
 
 reg [7:0] DIR_REG;
@@ -173,13 +178,13 @@ reg [7:0] TXD2_REG;
 reg [2:0] ADC_SEL;
 always @(posedge CLK or negedge RST_N)
 if (!RST_N) begin
-		PORTD_OUT <= 8'h00;		// Clear the Output regs.
-		PORTF_OUT <= 8'h00;
-		PORTG_OUT <= 8'h00;
-	 PORTG_CTR[0] <= 16'h0000;	// Zero the Counters?
-	 PORTG_CTR[1] <= 16'h0000;
-	 PORTG_CTR[2] <= 16'h0000;
-	 PORTG_CTR[3] <= 16'h0000;
+		 PORTD_OUT <= 8'h00;		// Clear the Output regs.
+		 PORTF_OUT <= 8'h00;
+		 PORTG_OUT <= 8'h00;
+	 PORTG_CTR[0] <= 8'h00;	// Zero the Counters?
+	 PORTG_CTR[1] <= 8'h00;
+	 PORTG_CTR[2] <= 8'h00;
+	 PORTG_CTR[3] <= 8'h00;
 			DIR_REG <= 8'hff;		// Set all ports to INPUTs on reset. (MAME)
 		  FLAG_REG <= 8'h0C;		// HACK: Receive buffers always Full, Transmit buffers always Empty. (MAME)
 		  MODE_REG <= 8'h00;		// Clear MODE reg on reset. (MAME)
@@ -198,16 +203,18 @@ else begin
 			if (PORTF_CS) PORTF_OUT <= MSHDO[7:0];
 			if (PORTG_CS) PORTG_OUT <= MSHDO[7:0];
 			if (DIR_CS)     DIR_REG <= MSHDO[7:0];
+			if (TXD1_CS)   TXD1_REG <= MSHDO[7:0];
+			if (TXD2_CS)   TXD2_REG <= MSHDO[7:0];
 			if (MODE_CS)   MODE_REG <= MSHDO[7:0];
 			if (ADC_CS)     ADC_SEL <= MSHDO[2:0];
 		end
 	end
 	
 	// Spoofing counters for now. Trying to get a game (ANY game) to boot!
-	PORTG_CTR[0] <= PORTG_CTR[0]+16'd1;
-	PORTG_CTR[1] <= PORTG_CTR[1]+16'd2;
-	PORTG_CTR[2] <= PORTG_CTR[2]+16'd3;
-	PORTG_CTR[3] <= PORTG_CTR[3]+16'd4;
+	PORTG_CTR[0] <= PORTG_CTR[0]+8'd1;
+	PORTG_CTR[1] <= PORTG_CTR[1]+8'd1;
+	PORTG_CTR[2] <= PORTG_CTR[2]+8'd1;
+	PORTG_CTR[3] <= PORTG_CTR[3]+8'd1;
 end
 
 
@@ -217,15 +224,15 @@ assign STV_IO_DOUT = PORTA_CS ? {4{P1_CONT}}		:	// 0x01. P1.
 							PORTD_CS ? {4{PORTD_OUT}}	:	// 0x07. PORTD = (output / readback).
 							PORTE_CS ? {4{P3_CONT}}		:	// 0x09. P3.
 							PORTF_CS ? {4{P4_CONT}}		:	// 0x0b. P4 / Extra 6-button Layout.
-							PORTG_CS ? {2{CTR_MUX}} 	:	// 0x0d. PORTG = Counters.
+							PORTG_CS ? {4{CTR_MUX}} 	:	// 0x0d. PORTG = Counters.
 							  DIR_CS ? {4{DIR_REG}}		:	// 0x11. IO Port DIRection reg.
-							 TXD1_CS ? {4{8'hff}}		:	// 0x13. 
-							 TXD2_CS ? {4{8'hff}}		:	// 0x15. 
-							 RXD1_CS ? {4{8'hff}}		:	// 0x17. 
-							 RXD2_CS ? {4{8'hff}}		:	// 0x19. 
-							 FLAG_CS ? {4{8'h00}}		:	// 0x1b. Serial COM READ status.
+							 TXD1_CS ? {4{TXD1_REG}}		:	// 0x13. 
+							 TXD2_CS ? {4{TXD2_REG}}		:	// 0x15. 
+							 RXD1_CS ? {4{TXD1_REG}}		:	// 0x17. (trying loopback from TXD1 atm)
+							 RXD2_CS ? {4{TXD2_REG}}		:	// 0x19. (trying loopback from TXD2) 
+							 FLAG_CS ? {4{FLAG_REG}}	:	// 0x1b. Serial COM READ status.
 							 MODE_CS ? {4{MODE_REG}}	:	// 0x1d.
 							  ADC_CS ? {4{ADC_MUX}}		:	// 0x1f. Read ADC channel(s).
-										  32'hffffffff;		// Default / Open bus.
+										  32'h00ff00ff;		// Default / Open bus.
 
 endmodule

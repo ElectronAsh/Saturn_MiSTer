@@ -330,7 +330,7 @@ module emu
 
 		"-;",
 		"R0,Reset;",
-		"J1,A,B,C,Start,R,X,Y,Z,L,STV-S2,STV-Mcart,STV-Pause;",
+		"J1,A,B,C,Start,R,X,Y,Z,L,STV-S2,STV-Mcart,STV-Pause,STV-P4-B1,STV-P4-B2,STV-P4-B3,STV-P4-B4;",
 		"jn,A,B,R,Start,Select,X,Y,L;", 
 		"jp,Y,B,A,Start,Select,L,X,R;",
 		"V,v",`BUILD_DATE
@@ -430,7 +430,7 @@ module emu
 	wire bios_download = ioctl_download & (ioctl_index[5:2] == 4'b0000 && ioctl_index[1:0] != 2'h3);
 	wire cart_download = ioctl_download & (ioctl_index[5:2] == 4'b0000 && ioctl_index[1:0] == 2'h3);
 	wire save_download = ioctl_download & (ioctl_index[5:2] == 4'b0001);
-	wire cdd_download = ioctl_download & (ioctl_index[5:2] == 4'b0010);
+	wire cdd_download  = ioctl_download & (ioctl_index[5:2] == 4'b0010);
 	wire cdboot_download = ioctl_download & (ioctl_index[5:2] == 4'b0011);
 	
 	wire [2:0] cart_type = status[23:21];
@@ -689,7 +689,7 @@ module emu
 	wire [15:0] CD_RAM_Q;
 	wire        CD_RAM_RDY;
 	
-	wire [24:1] CART_MEM_A;
+	wire [25:1] CART_MEM_A;
 	wire [15:0] CART_MEM_D;
 	wire [15:0] CART_MEM_Q;
 	wire [ 1:0] CART_MEM_WE;
@@ -862,6 +862,7 @@ module emu
 		.CD_RAM_RDY(CD_RAM_RDY),
 		
 		.ACS0_N(ACS0_N),
+		.ACS1_N(ACS1_N),
 		
 		.CART_MODE(cart_type),
 		.CART_MEM_A(CART_MEM_A),
@@ -1093,6 +1094,8 @@ module emu
 		.cdbuf_busy(cdbuf_busy),
 		
 		.ACS0_N(ACS0_N),
+		.ACS1_N(ACS1_N),
+		.cart_type(cart_type),
 		
 		//CART MEM
 `ifdef DEBUG
@@ -1101,7 +1104,7 @@ module emu
 		.cart_wr  ('0),
 		.cart_rd  (0),
 `else
-		.cart_addr(CART_MEM_A[24:1]),
+		.cart_addr(CART_MEM_A[25:1]),
 		.cart_din (CART_MEM_D),
 		.cart_wr  (CART_MEM_WE),
 		.cart_rd  (CART_MEM_RD),

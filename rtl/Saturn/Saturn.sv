@@ -104,9 +104,10 @@ module Saturn
 	input             CD_RAM_RDY,
 	
 	output        bit ACS0_N,
+	output        bit ACS1_N,
 	
 	input       [2:0] CART_MODE,
-	output     [24:1] CART_MEM_A,
+	output     [25:1] CART_MEM_A,
 	output     [15:0] CART_MEM_D,
 	output     [ 1:0] CART_MEM_WE,
 	output            CART_MEM_RD,
@@ -250,7 +251,7 @@ module Saturn
 	bit   [1:0] AFC;
 	bit         AAS_N;
 //	bit         ACS0_N;
-	bit         ACS1_N;
+//	bit         ACS1_N;
 	bit         ACS2_N;
 	bit         AWAIT_N;
 	bit         AIRQ_N;
@@ -457,7 +458,7 @@ module Saturn
 	
 
 
-(*keep*)wire STV_IO_CS = (MSHA[24:0]>=25'h400000 && MSHA[24:0]<=25'h40003f);
+(*keep*)wire STV_IO_CS = (!MSHCS0_N && MSHA[24:0]>=25'h0400000 && MSHA[24:0]<=25'h040003f);
 
 wire [31:0] STV_IO_DOUT;
 wire [7:0] PORTD_OUT;
@@ -480,14 +481,14 @@ stv_io  stv_io_inst (
 	.joy2( joy2 ),					// input [31:0]  joy2
 	.joy3( joy3 ),					// input [31:0]  joy3
 	
-	//.ADC_IN_0( ADC_IN_0 ),	// input [7:0]  ADC_IN_0
-	//.ADC_IN_1( ADC_IN_1 ),	// input [7:0]  ADC_IN_1
-	//.ADC_IN_2( ADC_IN_2 ),	// input [7:0]  ADC_IN_2
-	//.ADC_IN_3( ADC_IN_3 ),	// input [7:0]  ADC_IN_3
-	//.ADC_IN_4( ADC_IN_4 ),	// input [7:0]  ADC_IN_4
-	//.ADC_IN_5( ADC_IN_5 ),	// input [7:0]  ADC_IN_5
-	//.ADC_IN_6( ADC_IN_6 ),	// input [7:0]  ADC_IN_6
-	//.ADC_IN_7( ADC_IN_7 ),	// input [7:0]  ADC_IN_7
+	.ADC_IN_0( 8'hCC ),	// input [7:0]  ADC_IN_0
+	.ADC_IN_1( 8'hB2 ),	// input [7:0]  ADC_IN_1
+	.ADC_IN_2( 8'h99 ),	// input [7:0]  ADC_IN_2
+	.ADC_IN_3( 8'h7F ),	// input [7:0]  ADC_IN_3
+	.ADC_IN_4( 8'h66 ),	// input [7:0]  ADC_IN_4
+	.ADC_IN_5( 8'h4c ),	// input [7:0]  ADC_IN_5
+	.ADC_IN_6( 8'h33 ),	// input [7:0]  ADC_IN_6
+	.ADC_IN_7( 8'h19 ),	// input [7:0]  ADC_IN_7
 	
 	.PORTD_OUT( PORTD_OUT ),	// output [7:0]  PORT_D_OUT. JAMMA (56P) + CN25 (JST NH 5P) RESERVED OUTPUT 4bit. (?)
 	.PORTF_OUT( PORTF_OUT ),	// output [7:0]  PORT_F_OUT. CN21 (JST NH 11P) EXTENSION I/O 8bit. Used for 7-Seg disp, on games like Critter Crusher.
@@ -523,7 +524,9 @@ stv_io  stv_io_inst (
 	
 	assign ADI      = !ACS0_N || !ACS1_N ? CART_DO  : 
 	                  !ACS2_N            ? CD_DO    : 16'hFFFF;
+							
 	assign AWAIT_N  = YGR019_AWAIT_N & CART_AWAIT_N;
+	
 	assign AIRQ_N   = ARQT_N;
 	
 	assign BDI      = !BCS1_N ? VDP1_DO :
@@ -753,9 +756,9 @@ jt9346  jt9346_inst (
 	.clk( CLK ),			// system clock
 	
 	.sclk( EEP_CLK ),		// serial clock
-	.sdi(  EEP_SDI ),		// serial data in
-	.sdo(  EEP_SDO ),		// serial data out and ready/not busy signal
-	.scs(  EEP_CS )//,	// chip select, active high. Goes low in between instructions
+	.sdi ( EEP_SDI ),		// serial data in
+	.sdo ( EEP_SDO ),		// serial data out and ready/not busy signal
+	.scs ( EEP_CS )//,	// chip select, active high. Goes low in between instructions
 	
 	//.dump_clk( dump_clk ),
 	//.dump_addr( dump_addr ),

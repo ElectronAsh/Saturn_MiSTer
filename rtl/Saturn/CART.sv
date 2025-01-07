@@ -23,7 +23,7 @@ module CART (
 	output            AWAIT_N,
 	output            ARQT_N,
 	
-	output     [24:1] MEM_A,
+	output     [25:1] MEM_A,
 	input      [15:0] MEM_DI,
 	output     [15:0] MEM_DO,
 	output     [ 1:0] MEM_WE,
@@ -34,7 +34,7 @@ module CART (
 	wire [24:1] DRAM1M_ADDR = {5'b00000,AA[21],AA[18:1]};
 	wire [24:1] DRAM4M_ADDR = {3'b000,AA[21:1]};
 	wire [24:1] ROM2M_ADDR  = {4'b0000,AA[20:1]};
-	wire [24:1] STV_ADDR    = AA[24:1];
+	wire [25:1] STV_ADDR    = AA[25:1];
 	wire [24:1] BACKUP_ADDR = {5'b00000,AA[19:1]};
 	
 	wire CART_ID_SEL = (AA[23:1] == 24'hFFFFFF>>1) && ~ACS1_N;

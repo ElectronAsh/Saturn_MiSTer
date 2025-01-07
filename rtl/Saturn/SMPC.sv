@@ -1090,7 +1090,7 @@ module SMPC (
 			if (!RW_N && RW_N_OLD && !CS_N) begin
 				case ({A,1'b1})
 					7'h01: begin 
-						{CONT,BREAK} <= DI[7:6];
+						{CONT,BREAK} <= (DI[6]) ? 2'b01 : {DI[7],1'b0};
 						IREG[0] <= DI;
 					end
 					7'h03: IREG[1] <= DI;

@@ -78,8 +78,10 @@ module ddram
 	output         cdbuf_busy,
 
 	input          ACS0_N,
+	input          ACS1_N,
+	input  [2:0]   cart_type,
 	
-	input  [24: 1] cart_addr,
+	input  [25: 1] cart_addr,
 	output [15: 0] cart_dout,
 	input  [15: 0] cart_din,
 	input          cart_rd,
@@ -351,7 +353,7 @@ always @(posedge clk) begin
 				vdp1fb_rcache_dirty <= 1;
 			end	
 		end
-		if (|cart_wr && !cart_wr_old) begin
+		if (|cart_wr && !cart_wr_old /*&& cart_type!=3'd5*/) begin		// Inhibit SH2 writes to the Cart ROM, in ST-V mode. ElectronAsh.
 			if ({ACS0_N,cart_addr[24:4]} == cart_rcache_addr[25:4]) begin	// Does the new WRITE request addr match the previous READ address?
 				cart_rcache_dirty <= 1;													// If so, mark the data as dirty, which will force a new DDR3 read on the next READ request!
 			end
@@ -521,9 +523,7 @@ always @(posedge clk) begin
 				else if (cart_write_busy) begin
 					cart_write_busy <= 0;
 					//ram_address <= {4'b0011,cart_write_addr[21:3],2'b00};
-					// Set bit [26] when Writing to cart "DRAM", to write to offset 0x4000000 in DDR3.
-					// Bit [25] Low when ACS0_N is Low (lower 32MB). Set High When Writing to the upper 32MB.
-					//ram_address <= 28'h4000000+{ACS0_N,cart_write_addr[24:3],2'b00};
+					//ram_address <= 28'h4000000+{!ACS1_N,cart_write_addr[24:3],2'b00};
 					ram_address <= 28'h4000000+{cart_write_addr[25:3],2'b00};
 					ram_din		<= {4{cart_write_data}};
 					case (cart_write_addr[2:1])
@@ -551,7 +551,7 @@ always @(posedge clk) begin
 					word_cnt    <= '0;
 					state       <= 3'h2;
 				end
-				else if (bios_write_busy) begin
+				else if (bios_write_busy) begin	// BIOS / ST-V Cart loading, via io_ctl.
 					bios_write_busy <= 0;
 					// Set bit [26] when Loading cart, to write at offset 0x4000000 in DDR3.
 					// Bit [25] can be set in bios_write_addr, since it comes direct from ioctl_addr->IO_ADDR during Loading.
