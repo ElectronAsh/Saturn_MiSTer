@@ -20,6 +20,7 @@
 //============================================================================
 
 `define MISTER_DISABLE_ALSA 1
+`define MISTER_DISABLE_YC 1
 
 module sys_top
 (

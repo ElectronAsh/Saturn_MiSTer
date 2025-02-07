@@ -70,9 +70,11 @@ wire [8:0] screen_width = HRES[0] ? 352 : 320;
 // [11] = Z
 // [12] = L
 
+reg [9:0] hcnt_int;
+
 always @(posedge CLK) begin
 	reg old_pix, old_hde, old_vde, old_ms;
-	reg [9:0] hcnt;
+	//reg [9:0] hcnt;
 	reg [8:0] vcnt;
 	reg [8:0] vtotal;
 	reg [15:0] hde_d;
@@ -135,8 +137,8 @@ always @(posedge CLK) begin
 	if(CE_PIX) begin
 		hde_d <= {hde_d[14:0],HDE};
 		old_hde <= hde_d[15];
-		if(~&hcnt) hcnt <= hcnt + 1'd1;
-		if(~old_hde & ~HDE) hcnt <= 0;
+		if(~&hcnt_int) hcnt_int <= hcnt_int + 1'd1;
+		if(~old_hde & ~HDE) hcnt_int <= 0;
 		if(old_hde & ~hde_d[15]) begin
 			if(~VDE) begin
 				vcnt <= 0;
@@ -155,8 +157,8 @@ always @(posedge CLK) begin
 			yp <= lg_y + cross_sz;
 			
 			// Check if the target is off the edge of the screen. (Left, or Right, or Top, or Bottom).
-			// (have to do screen_width-2, because of the 352-wide res mapping.)
-			offscreen <= !lg_x[8:1] || lg_x >= (screen_width-2) || !lg_y[7:1] || lg_y >= (vtotal-1'd1);
+			// (have to do screen_width-4, because the mapping 352-wide res only reaches 0-348 for Joystick X.)
+			offscreen <= !lg_x[8:1] || lg_x >= (screen_width-4) || !lg_y[7:1] || lg_y >= (vtotal-1'd1);
 			
 			if(reload_pend && !reload) begin
 				reload_pend <= reload_pend - 3'd1;
@@ -187,5 +189,10 @@ always @(posedge CLK) begin
 	draw <= (((SIZE[1] || ($signed(hcnt) >= $signed(xm) && hcnt <= xp)) && y == vcnt) || 
 				((SIZE[1] || ($signed(vcnt) >= $signed(ym) && vcnt <= yp)) && x == hcnt));
 end
+
+// Interlaced mode seems to change how the pixel clock or CE_PIX works?
+// This was mapping the Lightgun to only the left half of the screen. EA
+//
+wire [9:0] hcnt = (INTERLACE) ? hcnt_int[9:1] : hcnt_int;
 
 endmodule
